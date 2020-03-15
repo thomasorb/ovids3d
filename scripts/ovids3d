@@ -1,0 +1,92 @@
+#!/usr/bin/env python 
+# *-* coding: utf-8 *-*
+# Author: Thomas Martin <thomas.martin.1@ulaval.ca>
+# File: ovids3d
+
+import sys
+import argparse
+from argparse import ArgumentParser
+
+from ovids3d.engine import World
+from panda3d.core import loadPrcFileData
+from panda3d.core import ConfigVariableString
+
+
+
+########################################################################
+##################### MAIN #############################################
+########################################################################
+
+if __name__ == "__main__":
+
+    """Main entrance of the script.
+    
+    Parse arguments and launch the reduction process.
+    """
+
+    # define epilog for command help
+
+    epilog = """  Ovids3d
+  Author: Thomas Martin (thomas.martin.1@ulaval.ca)"""
+     
+    # define main parser
+    parser = ArgumentParser(
+        prog='ovids3d',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Run the 3d data visualizer.")
+
+    parser.add_argument(
+        'path', action='store',
+        help="Path to the 3d map FITS file.")
+
+    parser.add_argument(
+        '--cmap', dest='cmap', action='store',
+        default='hot',
+        type=str,
+        help="matplotlib colormap to use")
+    
+    parser.add_argument(
+        '--screenscale', dest='screen_scale', action='store',
+        default=0.8,
+        type=float,
+        help="Screen scaling")
+
+    parser.add_argument(
+        '--bloom', dest='bloom', action='store',
+        default=0.5,
+        type=float,
+        help="Bloom intensity")
+
+    parser.add_argument(
+        '--blur', dest='blur', action='store',
+        default=0.5,
+        type=float,
+        help="Blur/Sharpen intensity: 0 max blur, 2 max sharpen")
+    
+    parser.add_argument(
+        '--rec', dest='record', action='store_true',
+        default=False,
+        help="Record as a set of jpg images")
+
+    parser.add_argument(
+        '--autopilot', dest='autopilot', action='store',
+        default='',
+        type=str,
+        help="Path to the autopilot xml file")
+    
+    if len(sys.argv) < 2:
+        parser.print_usage()
+        sys.exit(2)
+        
+    args = parser.parse_args()
+    
+    x, y = 1920, 1080
+    loadPrcFileData('', 'win-size {} {}'.format(
+        int(x * args.screen_scale), int(y * args.screen_scale)))
+
+    w = World(bloom=args.bloom, blur=args.blur, record=args.record)
+    w.add_star(0.0003, 2500, atmalpha=0.6, colorintensity=1, color='m1blue')
+    w.load_map(args.path, 'map', args.cmap)
+    if args.autopilot != '':
+        w.ship.autopilot(args.autopilot, scale=3, timescale=3)
+    w.base.run()

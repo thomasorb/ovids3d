@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<nodes>
+  <look at='center'></look>
+  <fov fov='80'></fov>
+  
+  <pos pos='0,-1.1,0' duration='5'></pos>
+  <pos pos='-1.1,0,1.05' duration='5'></pos>
+  <pos pos='0,1.05,0' duration='5'></pos>
+  <fov fov='30' duration='10'></fov>
+  
+  <pos pos='1,0,-1' duration='5'></pos>
+
+  <pos pos='0,-0.4,0' duration='5'></pos>
+  <pos pos='-0.4,0,0.4' duration='5'></pos>
+  <pos pos='0,0.4,0' duration='5'></pos>
+  <pos pos='0.4,0,-0.4' duration='5'></pos>
+
+  <fov fov='60' duration='10'></fov>
+  <pos pos='1,0,1' duration='5'></pos>
+  <pos pos='0,1,0' duration='5'></pos>  
+  <pos pos='-1,0,-1' duration='5'></pos>
+
+  <fov fov='40' duration='10'></fov>
+  <pos pos='0.4,0,0.4' duration='5'></pos>
+  <pos pos='0,0.4,0' duration='5'></pos>  
+  <pos pos='-0.4,0,-0.4' duration='5'></pos>
+  <pos pos='0,-0.4,0' duration='5'></pos>
+  
+  <fov fov='70' duration='5'></fov>
+  <pos pos='0,-1,0' duration='5'></pos>
+  
+  
+  
+  
+</nodes>
+
