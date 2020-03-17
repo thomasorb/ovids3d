@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<nodes>
+  <scale value='30'></scale>
+  <timescale value='3'></timescale>
+  
+  <look at='center'></look>
+  <fov fov='60'></fov>
+  
+  <pos pos='0,-1,0' duration='5'></pos>
+  
+  
+  
+  
+</nodes>

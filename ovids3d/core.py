@@ -2,6 +2,7 @@ import warnings
 import sys
 import os
 import numpy as np
+import logging
 import scipy.interpolate
 import astropy.io.fits as pyfits
 import pylab as pl
@@ -99,38 +100,39 @@ class Map3d(object):
 
         self.data = pyfits.open(path)[0].data.T
         self.cmap = cmap
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            X, Y, Z, C = self.data
+            posx = X.T.flatten() * scale  
+            posy = Y.T.flatten() * scale
+            posz = Z.T.flatten() * scale
+            nonans = ~np.isnan(posx) * ~np.isnan(posy) * ~np.isnan(posz)
+            posx = posx[nonans]
+            posy = posy[nonans]
+            posz = posz[nonans]
 
-        X, Y, Z, C = self.data
-        posx = X.T.flatten() * scale  
-        posy = Y.T.flatten() * scale
-        posz = Z.T.flatten() * scale
-        nonans = ~np.isnan(posx) * ~np.isnan(posy) * ~np.isnan(posz)
-        posx = posx[nonans]
-        posy = posy[nonans]
-        posz = posz[nonans]
+            scale /= min((np.nanpercentile(posx,99.9),
+                          np.nanpercentile(posy,99.9),
+                          np.nanpercentile(posz,99.9)))
 
-        scale /= min((np.nanpercentile(posx,99.9),
-                      np.nanpercentile(posy,99.9),
-                      np.nanpercentile(posz,99.9)))
+            posx *= scale
+            posy *= scale
+            posz *= scale
 
-        posx *= scale
-        posy *= scale
-        posz *= scale
+            colors = C.T.flatten()[nonans]
+            colors -= np.nanpercentile(colors, 5)
+            colors = np.sqrt(colors)
 
-        colors = C.T.flatten()[nonans]
-        colors -= np.nanpercentile(colors, 5)
-        colors = np.sqrt(colors)
-        
-        colors /= np.nanpercentile(colors, 95)
-        colors[colors < 0] = 0
-        colors[colors > 1] = 1
+            colors /= np.nanpercentile(colors, 95)
+            colors[colors < 0] = 0
+            colors[colors > 1] = 1
 
-        threshold = 0.
-        self.posx = posx[colors > threshold]
-        self.posy = posy[colors > threshold]
-        self.posz = posz[colors > threshold]
-        self.colors = colors[colors > threshold]
-        self.xyzc = (self.posx, self.posy, self.posz, self.colors)
+            threshold = 0.
+            self.posx = posx[colors > threshold]
+            self.posy = posy[colors > threshold]
+            self.posz = posz[colors > threshold]
+            self.colors = colors[colors > threshold]
+            self.xyzc = (self.posx, self.posy, self.posz, self.colors)
 
     def show(self, axis=0, size=10000):
         randpix = np.arange(self.posx.size)
@@ -138,20 +140,23 @@ class Map3d(object):
         randpix = randpix[:size]
         ax0, ax1 = np.roll([self.posx, self.posy, self.posz], axis+2)[:2]
         
-        pl.scatter(ax0[randpix], ax1[randpix], c=self.colors[randpix], alpha=0.01)
+        pl.scatter(ax0[randpix], ax1[randpix], c=self.colors[randpix],
+                   alpha=0.01, cmap=self.cmap)
         
 #########################################################
 ##### class Path ########################################
 #########################################################
 
 class Path(object):
+
+    labels = ['x', 'y', 'z']
     
     def __init__(self, filepath):
         
         # load roadmap steps
 
         if not os.path.exists(filepath):
-            warnings.warn('{} not found, trying in paths directory'.format(filepath))
+            logging.debug('{} not found, trying in paths directory'.format(filepath))
             filepath = ROOT + '/paths/' + filepath
         
         nodes_xml = xml.etree.ElementTree.parse(filepath).getroot()
@@ -159,7 +164,13 @@ class Path(object):
         looknodes = list()
         fovnodes = list()
         timing = 0
+        
         for node in nodes_xml:
+            if node.tag == 'scale':
+                self.scale = float(node.attrib['value'])
+            if node.tag == 'timescale':
+                self.timescale = float(node.attrib['value'])
+            
             if node.tag == 'pos':
                 pos = np.array(node.attrib['pos'].strip().split(','), dtype=float)
                 duration = float(node.attrib['duration'])
@@ -190,12 +201,14 @@ class Path(object):
         for node in self.posnodes:
             if node[-1] != order:
                 if len(igroup) > 0:
+                    igroup.append(node[:-1])
                     interp_groups.append((order, igroup))
                 igroup = list()
                 order = node[-1]
             igroup.append(node[:-1])
             
         if len(igroup) > 0:
+            
             interp_groups.append((order, igroup))
                 
             
@@ -213,7 +226,6 @@ class Path(object):
             distances = np.cumsum(np.sqrt(np.sum(
                 np.diff(inodes[:,1:], axis=0)**2, axis=1)))
             distances = np.insert(distances, 0, 0)
-            
             interpolator = scipy.interpolate.interp1d(
                 distances, inodes[:,1:], kind=iorder, axis=0)
 
@@ -225,12 +237,23 @@ class Path(object):
                     steps.append(np.insert(isteps[j], 0, duration))
 
         steps = np.array(steps)
+        steps[:,1:] *= self.scale
+        steps[:,0] *= self.timescale
+        
         return steps
         
-    def plot(self, step_nb, scale=1, axis=0):
+    def plot(self, step_nb=1000, scale=1, axis=0):
         steps = self.get_pos_steps(step_nb)
         ax0, ax1 = np.roll(np.arange(3), axis+2)[:2] + 1
-        pl.plot(steps[:,ax0] * scale, steps[:,ax1] * scale)
+        time = np.cumsum(steps[:,0])
+        pl.scatter(steps[:,ax0] * scale, steps[:,ax1] * scale, c=time, marker='.')
+        pl.colorbar()
+        pl.scatter(self.posnodes[:,ax0] * scale * self.scale,
+                   self.posnodes[:,ax1] * scale * self.scale,
+                   c=np.linspace(0,1,self.posnodes.shape[0]))
+        pl.axis('equal')
+        pl.xlabel(self.labels[ax0-1])
+        pl.ylabel(self.labels[ax1-1])
         
 
 
@@ -243,17 +266,25 @@ class Path(object):
                 istep[0] = nodes[i+1][0] - nodes[i][0]
             else:
                 istep[0] = 0
-            if len(istep) == 3: # microstepping at 1/200s
-                microsteps = int(200 * istep[2])
-                deltat = istep[2]/microsteps
+            if len(istep) == 3: # microstepping at 1/100s
+                microsteps = int(100 * istep[2] * self.timescale)
+                print(microsteps, self.timescale)
+                deltat = istep[2]/microsteps * self.timescale
+                print(deltat)
                 if len(steps) == 0:
                     raise StandardError('first node cannot have any duration (it sets the original value)')
                 last_value = steps[-1][1]
                 vals = np.linspace(last_value, istep[1], microsteps)
                 for j in range(microsteps):
                     steps.append([deltat, vals[j]])
+
+                istep[0] *= self.timescale
+                istep[0] -= istep[2] * self.timescale
+                if istep[0] > 0:
+                    steps.append(istep[:2])
             else:
-                steps.append(istep)            
+                istep[0] *= self.timescale
+                steps.append(istep)
         return steps  
         
         

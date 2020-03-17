@@ -8,7 +8,7 @@ from direct.showbase.ShowBase import ShowBase
 from panda3d.core import DirectionalLight, VBase4, TransparencyAttrib, Vec3, Point3, NodePath
 from panda3d.physics import ActorNode, ForceNode, LinearVectorForce
 from direct.filter.CommonFilters import CommonFilters
-from panda3d.core import WindowProperties
+from panda3d.core import WindowProperties, Fog
 from direct.task.Task import Task
 from direct.particles.ParticleEffect import ParticleEffect
 from direct.interval.IntervalGlobal import Wait, Sequence, Func, ParticleInterval, Parallel
@@ -17,6 +17,7 @@ from . import overlay
 from . import core
 from . import models        
 
+import logging
 #########################################################
 ##### class World #######################################
 #########################################################
@@ -24,7 +25,17 @@ from . import models
 class World(DirectObject):
 
 
-    def __init__(self, bloom=0.62, blur=0.7, record=False):
+    def __init__(self, bloom=0.62, blur=0.7, record=False, background=False, debug=False):
+
+        if not debug:
+            logging.getLogger().setLevel(logging.INFO)
+        else:
+            logging.getLogger().setLevel(logging.DEBUG)
+            
+        self.config = core.Config()
+        self.config['spacescale'] = 10 # m / 3d space unit
+        self.config['timescale'] = 1 # s / real s 
+        
         self.base = ShowBase()
         self.base.setBackgroundColor(0,0,0)
                 
@@ -32,7 +43,8 @@ class World(DirectObject):
         filters.setBloom(blend=np.array([1,1,1,0.]), intensity=bloom, size='large', desat=0.0)
         filters.setBlurSharpen(blur)
 
-        self.background = models.Background()
+        if background:
+            self.background = models.Background(scale=100*self.config['spacescale'])
         
         
         self.base.disableMouse()
@@ -45,12 +57,6 @@ class World(DirectObject):
         
         self.accept("escape", sys.exit)
 
-        self.objects_node = render.attachNewNode('objects_node')
-        self.objects_node.setPos(0,0,0)
-
-        self.config = core.Config()
-        self.config['spacescale'] = 1 # m / 3d space unit
-        self.config['timescale'] = 1 # s / real s 
                 
         self.physics_node = NodePath("physics-node")
         self.physics_node.reparentTo(render)
@@ -63,17 +69,26 @@ class World(DirectObject):
         self.ship = Ship(self.base, self.objects_node, self.config, self.overlay.infos)
         self.ship.to_origin()
 
-    
     def load_map(self, path, name, cmap):
-        self.map3d = core.Map3d(path, name, cmap)
+        if '.bam' in path:
+            print(path)
+            self.pixels = loader.loadModel(path)
+            self.pixels.setScale(self.config['spacescale'])
+            self.pixels.reparentTo(self.objects_node)
+            
+        elif '.fits' in path:
+            self.map3d = core.Map3d(path, name, cmap, scale=self.config['spacescale'])
         
-        self.pixels = models.Pixels(
-            self.objects_node, self.map3d, self.config)
+            self.pixels = models.Pixels(
+                self.objects_node, self.map3d, self.config['spacescale'])
+
+            render.analyze()
+        else: raise StandardError('bad extension (must be fits or bam)')
 
     def add_star(self, radius, atm_size, colorintensity=20, pos=(0,0,0), color='white', atmalpha=0.7):
         self.star = models.Star(
             self.objects_node, Vec3(pos),
-            radius, atm_size, 
+            radius * self.config['spacescale'], atm_size, 
             0, color, intensity=colorintensity, atmalpha=atmalpha)
 
         
@@ -107,7 +122,7 @@ class Ship(DirectObject):
         self.lookatnode = self.objects_node
         
         
-        self.farstars = models.FarStars(self.node)
+        self.farstars = models.FarStars(self.node, radius=80*self.config['spacescale'])
         
                 
         self.base.physicsMgr.attachPhysicalNode(self.objects_node.node())
@@ -225,7 +240,7 @@ class Ship(DirectObject):
         
     def shipMoveTask(self, task):
 
-        SCALE = 500
+        SCALE = 5 * self.config['spacescale']
         SCALEHPR = 0.1
 
                     
@@ -292,7 +307,7 @@ class Ship(DirectObject):
         
         self.start_looking_at('center')
         path = core.Path(filepath)
-        possteps = path.get_pos_steps(30000)
+        possteps = path.get_pos_steps(10000)
         self.setPos(Point3(*possteps[0][1:] * scale))
         
         posintervals = list()
@@ -339,8 +354,9 @@ class Ship(DirectObject):
         return Task.cont
         
     def lookAtTask(self, task):
-        self.base.camera.setHpr(self.lookatnode, 0, 0, 0)
-        self.base.camera.lookAt(self.lookatnode)        
+        #self.base.camera.lookAt(self.lookatnode)
+        self.base.camera.lookAt(self.lookatnode.getPos(), Vec3(0,1,0))
+        
         return Task.cont
         
     def start_looking_at(self, direction):

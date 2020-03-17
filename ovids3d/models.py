@@ -1,6 +1,7 @@
 import matplotlib.cm
 import numpy as np
 import os
+import sys
 from panda3d.core import TextureStage, Material, TransparencyAttrib, GeomVertexFormat, GeomVertexData, Geom, GeomPoints, GeomVertexWriter, GeomNode, NodePath, RenderModeAttrib, PointLight, VBase4, Vec3, LineSegs
 from direct.showbase.DirectObject import DirectObject
 
@@ -59,7 +60,7 @@ class FarStars(DirectObject):
         gnode = GeomNode('starfield')
         gnode.addGeom(geom)
         nodepath = NodePath(gnode)
-        nodepath.setRenderMode(RenderModeAttrib.MPoint, 1.5)
+        nodepath.setRenderMode(RenderModeAttrib.MPoint, 2.5)
         nodepath.reparentTo(self.node)
         nodepath.setLightOff()
         nodepath.clearColor()
@@ -74,15 +75,43 @@ class FarStars(DirectObject):
 
 class Pixels(DirectObject):
 
-    def __init__(self, objects_node, map3d, config):
-        
+    def __init__(self, objects_node, map3d, cubescale=1.):
+
+        self.cubescale = cubescale
         self.node = objects_node.attachNewNode('pixels')
         self.colors = core.Colors()
-        self.config = config
         self.map3d = map3d
-        self.add_pixels(*self.map3d.xyzc)
+        #self.add_pixels(*self.map3d.xyzc)
+        self.add_cubes(*self.map3d.xyzc)
+        
+    def add_cubes(self, posx, posy, posz, colors):
+        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
+        colorsRGBA[:,-1] = 0.8
+
+        model_path = core.ROOT + "/models/cube.x"
+
+        print('creating map model')
+        for i in range(posx.size):
+            if not i%100:
+                sys.stdout.write('{}/{}\r'.format(i, posx.size))
+        
+            model = loader.loadModel(model_path)
+            model.setPos(posx[i], posy[i], posz[i])
+            model.setColor(*colorsRGBA[i,:])
+            model.reparentTo(self.node)
+            model.setLightOff()
+            model.setScale(0.002 * self.cubescale)
+            sys.stdout.flush()
+
+        print('clearing nodes')
+        self.node.clear_model_nodes()
+        print('flattening node')
+        self.node.flattenStrong()
         
     def add_pixels(self, posx, posy, posz, colors):
+
+        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
+        colorsRGBA[:,-1] = 0.8
         
         # create vertices
         format = GeomVertexFormat.getV3c4() # position and texcoord
@@ -95,8 +124,6 @@ class Pixels(DirectObject):
         # GeomPoints primitive
         geompoints = GeomPoints(Geom.UHStatic)
 
-        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
-        colorsRGBA[:,-1] = 0.8
         index = 0
         for i in range(posx.size):
             # random angle positions

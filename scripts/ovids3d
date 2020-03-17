@@ -11,7 +11,7 @@ from ovids3d.engine import World
 from panda3d.core import loadPrcFileData
 from panda3d.core import ConfigVariableString
 
-
+import os
 
 ########################################################################
 ##################### MAIN #############################################
@@ -53,13 +53,13 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--bloom', dest='bloom', action='store',
-        default=0.5,
+        default=0.35,
         type=float,
         help="Bloom intensity")
 
     parser.add_argument(
         '--blur', dest='blur', action='store',
-        default=0.5,
+        default=0.75,
         type=float,
         help="Blur/Sharpen intensity: 0 max blur, 2 max sharpen")
     
@@ -67,6 +67,11 @@ if __name__ == "__main__":
         '--rec', dest='record', action='store_true',
         default=False,
         help="Record as a set of jpg images")
+
+    parser.add_argument(
+        '--back', dest='background', action='store_true',
+        default=False,
+        help="Add a Milky Way background")
 
     parser.add_argument(
         '--autopilot', dest='autopilot', action='store',
@@ -84,9 +89,10 @@ if __name__ == "__main__":
     loadPrcFileData('', 'win-size {} {}'.format(
         int(x * args.screen_scale), int(y * args.screen_scale)))
 
-    w = World(bloom=args.bloom, blur=args.blur, record=args.record)
+    w = World(bloom=args.bloom, blur=args.blur, record=args.record, background=args.background)
     w.add_star(0.0003, 2500, atmalpha=0.6, colorintensity=1, color='m1blue')
-    w.load_map(args.path, 'map', args.cmap)
+    
+    w.load_map(os.path.abspath(args.path), 'map', args.cmap)
     if args.autopilot != '':
-        w.ship.autopilot(args.autopilot, scale=3, timescale=3)
+        w.ship.autopilot(args.autopilot, scale=1, timescale=1)
     w.base.run()
