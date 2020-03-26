@@ -25,7 +25,8 @@ import logging
 class World(DirectObject):
 
 
-    def __init__(self, bloom=0.62, blur=0.7, record=False, background=False, debug=False):
+    def __init__(self, bloom=0.62, blur=0.7, record=False, background=False,
+                 debug=False, over=True, title=None):
 
         if not debug:
             logging.getLogger().setLevel(logging.INFO)
@@ -34,15 +35,14 @@ class World(DirectObject):
             
         self.config = core.Config()
         self.config['spacescale'] = 10 # m / 3d space unit
-        self.config['timescale'] = 1 # s / real s 
-        
+        self.config['timescale'] = 1 # s / real s
         self.base = ShowBase()
         self.base.setBackgroundColor(0,0,0)
                 
         filters = CommonFilters(self.base.win, self.base.cam)
         filters.setBloom(blend=np.array([1,1,1,0.]), intensity=bloom, size='large', desat=0.0)
         filters.setBlurSharpen(blur)
-
+        filters.setCartoonInk(separation=0.25, color=(0,0,0,1))
         if background:
             self.background = models.Background(scale=100*self.config['spacescale'])
         
@@ -63,36 +63,51 @@ class World(DirectObject):
 
         an = ActorNode('world-physics')
         self.objects_node = self.physics_node.attachNewNode(an)
-        
-        self.overlay = overlay.Overlay(self.base)
-        
-        self.ship = Ship(self.base, self.objects_node, self.config, self.overlay.infos)
-        self.ship.to_origin()
 
-    def load_map(self, path, name, cmap):
+        self.overlay = None
+        if over:
+            self.overlay = overlay.Overlay(self.base)
+            if title is not None:
+                self.overlay.infos['title'] = title
+        
+        
+        self.ship = Ship(self.base, self.objects_node, self.config, self.overlay)
+        self.ship.to_origin()    
+        
+    def add_map(self, path, name, cmap, colorscale=(1,1,1,1), ascubes=False):
         if '.bam' in path:
-            print(path)
             self.pixels = loader.loadModel(path)
             self.pixels.setScale(self.config['spacescale'])
             self.pixels.reparentTo(self.objects_node)
+            self.pixels.setTransparency(True)
+            self.pixels.setColorScale(colorscale)
             
         elif '.fits' in path:
             self.map3d = core.Map3d(path, name, cmap, scale=self.config['spacescale'])
         
             self.pixels = models.Pixels(
-                self.objects_node, self.map3d, self.config['spacescale'])
+                self.objects_node, self.map3d, self.config['spacescale'], alpha=alpha,
+                ascubes=ascubes)
 
+            self.pixels.node.setColorScale(colorscale)
             render.analyze()
         else: raise StandardError('bad extension (must be fits or bam)')
 
-    def add_star(self, radius, atm_size, colorintensity=20, pos=(0,0,0), color='white', atmalpha=0.7):
+    def add_star(self, radius, atm_size, colorintensity=20, pos=(0,0,0),
+                 color='white', atmalpha=0.7, endcolor=None, atmnb=100):
         self.star = models.Star(
             self.objects_node, Vec3(pos),
             radius * self.config['spacescale'], atm_size, 
-            0, color, intensity=colorintensity, atmalpha=atmalpha)
+            0, color, intensity=colorintensity, atmalpha=atmalpha,
+            atmendcolor=endcolor, atmnb=atmnb)
 
-        
-        
+    def add_plane(self, scale=1, pos=(0,0,0), intensity=1, hpr=(0,90,0), texrot=90):
+        models.Plane(self.objects_node, scale=scale*self.config['spacescale'],
+                     intensity=intensity, pos=pos, texrot=texrot, hpr=hpr)
+
+    def add_near_stars(self, nb, radius=10):
+        #models.NearStars(self.objects_node, nb, scale=scale * self.config['spacescale'])
+        models.NearStars(self.objects_node, radius=radius*self.config['spacescale'])
 
 #########################################################
 ##### class Ship ########################################
@@ -102,14 +117,17 @@ class Ship(DirectObject):
 
     default_fov = 55
     
-    def __init__(self, base, objects_node, config, infos):
+    def __init__(self, base, objects_node, config, overlay):
         self.objects_node = objects_node
         self.node = render.attachNewNode('ship-node')
         self.direction_node = NodePath("direction-node")
         self.direction_node.reparentTo(self.node)
 
-
-        self.infos = infos
+        if overlay is not None:
+            self.infos = overlay.infos
+        else:
+            self.infos = None
+            
         self.config = config
 
         self.BRAKEMAG = 200
@@ -162,6 +180,14 @@ class Ship(DirectObject):
         taskMgr.add(self.shipMoveTask, 'ship-shipMoveTask')
         taskMgr.remove('ship-setDirection')
         taskMgr.add(self.setDirectionTask, 'ship-setDirection')
+        if self.infos is not None:
+            taskMgr.remove('ship-infoTask')
+            taskMgr.add(self.infoTask, 'ship-infoTask')
+
+    def infoTask(self, task):
+        self.infos['position'] = self.objects_node.getPos() / self.config['spacescale']
+        self.infos['distance'] = np.sqrt(np.sum((self.objects_node.getPos() / self.config['spacescale'])**2))
+        return Task.cont
 
 
     def setPos(self, pos):

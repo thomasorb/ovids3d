@@ -51,17 +51,17 @@ class World(DirectObject):
             self.base.camera.setHpr(self.angle, 0, 0)
         return Task.cont
     
-    def load_map(self, path, name, cmap):
+    def add_map(self, path, name, cmap):
         self.map3d = ovids3d.core.Map3d(path, name, cmap, scale=1)
         
         self.pixels = ovids3d.models.Pixels(
-            self.objects_node, self.map3d)
+            self.objects_node, self.map3d, ascubes=True)
 
         self.pixels.node.writeBamFile(path + '.bam')
         
         render.analyze()
         
 w = World()
-w.load_map('/home/thomas/data/M1-movie/3dmap_flux.fits', 'none', 'hot')
+w.add_map('/home/thomas/data/M1-movie/3dmap_flux.fits', 'map', 'afmhot')
 
 w.base.run()

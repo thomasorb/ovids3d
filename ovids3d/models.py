@@ -2,7 +2,7 @@ import matplotlib.cm
 import numpy as np
 import os
 import sys
-from panda3d.core import TextureStage, Material, TransparencyAttrib, GeomVertexFormat, GeomVertexData, Geom, GeomPoints, GeomVertexWriter, GeomNode, NodePath, RenderModeAttrib, PointLight, VBase4, Vec3, LineSegs
+from panda3d.core import TextureStage, Material, TransparencyAttrib, GeomVertexFormat, GeomVertexData, Geom, GeomPoints, GeomVertexWriter, GeomNode, NodePath, RenderModeAttrib, PointLight, VBase4, Vec3, LineSegs, AmbientLight, Vec4
 from direct.showbase.DirectObject import DirectObject
 
 from . import core
@@ -14,6 +14,9 @@ from . import constants
 
 class FarStars(DirectObject):
 
+    PIXELSIZE = 2.
+    PERSPECTIVE = False
+    
     def __init__(self, objects_node, radius=80, nb=10000):
         self.node = objects_node.attachNewNode('farstars')
         self.colors = core.Colors()
@@ -21,7 +24,14 @@ class FarStars(DirectObject):
         self.add_stars(nb//3, self.colors('staryellow', 0.8))
         self.add_stars(nb//3, self.colors('staryellow', 0.5))
         self.add_stars(nb//3, self.colors('staryellow', 0.2))
-        
+
+    def set_pos(self, nb):
+        X = np.random.standard_normal(size=nb)
+        Y = np.random.standard_normal(size=nb)
+        Z = np.random.standard_normal(size=nb)
+        R = np.sqrt(X**2+Y**2+Z**2) / self.radius
+        return X/R, Y/R, Z/R
+                
     def add_stars(self, nb, color):
         
         # create vertices
@@ -34,13 +44,9 @@ class FarStars(DirectObject):
 
         # GeomPoints primitive
         geompoints = GeomPoints(Geom.UHStatic)
-
-        theta = np.random.uniform(0, np.pi, nb)
-        phi = np.random.uniform(0, 2 * np.pi, nb)
-        posx = self.radius * np.sin(theta) * np.cos(phi)
-        posy = self.radius * np.sin(theta) * np.sin(phi)
-        posz = self.radius * np.cos(theta)
-
+        
+        posx, posy, posz = self.set_pos(nb)
+        
         index = 0
         for i in range(nb):
             # random angle positions
@@ -60,7 +66,9 @@ class FarStars(DirectObject):
         gnode = GeomNode('starfield')
         gnode.addGeom(geom)
         nodepath = NodePath(gnode)
-        nodepath.setRenderMode(RenderModeAttrib.MPoint, 2.5)
+        nodepath.setRenderModePerspective(self.PERSPECTIVE)
+        nodepath.setRenderModeThickness(self.PIXELSIZE)
+        
         nodepath.reparentTo(self.node)
         nodepath.setLightOff()
         nodepath.clearColor()
@@ -68,26 +76,64 @@ class FarStars(DirectObject):
         nodepath.setShaderAuto()
         nodepath.setTransparency(TransparencyAttrib.MAlpha)
         nodepath.setBin('background', 0)
-         
+
+
+class NearStars(FarStars):
+
+    PIXELSIZE = 2.8
+    PERSPECTIVE = True
+    
+    def set_pos(self, nb):
+        posx = np.random.uniform(-self.radius, self.radius, size=nb)
+        posy = np.random.uniform(-self.radius, self.radius, size=nb)
+        posz = np.random.uniform(-self.radius, self.radius, size=nb)
+        return posx, posy, posz
+
+    # model_path = core.ROOT + "/models/cube.x"
+
+    # def __init__(self, objects_node, nb, scale=1):
+    #     color = (0.7,1,1,1)
+    #     radius = scale * 0.0005
+    #     for i in range(100):
+    #         ipos = np.random.uniform(-scale * 5, scale * 5, 3)
+    #         iradius = np.random.uniform(radius, 2*radius)
+    #         sphobj = loader.loadModel(self.model_path)
+    #         sphobj.reparentTo(objects_node)
+    #         sphobj.setPos(Vec3(*ipos))
+    #         sphobj.setScale(iradius)
+    #         sphobj.setLightOff()
+    #         atmMaterial = Material()
+    #         sphobj.setMaterial(atmMaterial)
+    #         sphobj.setShaderAuto()
+    #         sphobj.clearColor()
+    #         sphobj.setColor(color)
+    #         sphobj.setTransparency(True)
+
 #########################################################
 ##### class Pixels ######################################
 #########################################################
 
 class Pixels(DirectObject):
 
-    def __init__(self, objects_node, map3d, cubescale=1.):
+    def __init__(self, objects_node, map3d, cubescale=1., ascubes=False, alpha=1):
 
         self.cubescale = cubescale
         self.node = objects_node.attachNewNode('pixels')
         self.colors = core.Colors()
+        self.alpha = alpha
         self.map3d = map3d
-        #self.add_pixels(*self.map3d.xyzc)
-        self.add_cubes(*self.map3d.xyzc)
+        if ascubes:
+            self.add_cubes(*self.map3d.xyzc)
+        else:
+            self.add_pixels(*self.map3d.xyzc)
+
+    def get_colorsRGBA(self, colors):
+        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
+        colorsRGBA[:,-1] = self.alpha
+        return colorsRGBA
         
     def add_cubes(self, posx, posy, posz, colors):
-        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
-        colorsRGBA[:,-1] = 0.8
-
+        colorsRGBA = self.get_colorsRGBA(colors)
         model_path = core.ROOT + "/models/cube.x"
 
         print('creating map model')
@@ -110,8 +156,7 @@ class Pixels(DirectObject):
         
     def add_pixels(self, posx, posy, posz, colors):
 
-        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
-        colorsRGBA[:,-1] = 0.8
+        colorsRGBA = self.get_colorsRGBA(colors)
         
         # create vertices
         format = GeomVertexFormat.getV3c4() # position and texcoord
@@ -152,8 +197,6 @@ class Pixels(DirectObject):
         
         self.nodepath.reparentTo(self.node)
         self.nodepath.setLightOff()
-        #self.nodepath.clearColor()
-        #self.nodepath.setColor(color)
         self.nodepath.setShaderAuto()
         self.nodepath.setTransparency(TransparencyAttrib.MAlpha)
         self.nodepath.setBin('background', 0)
@@ -180,7 +223,8 @@ class SphericalObject(DirectObject):
 
     def __init__(self, objects_node, pos, radius, dayscale,
                  atmcolor, atmheight, atmalpha, atmnb=10, tex_path= core.ROOT + "/textures/sun",
-                 glowing=False):
+                 glowing=False, atmendcolor=None, cloudy=False):
+
         
         self.node = objects_node.attachNewNode(
             'sphobj{}'.format(objects_node.countNumDescendants() + 1))
@@ -189,7 +233,11 @@ class SphericalObject(DirectObject):
         self.dayscale = dayscale
         self.radius = radius
         self.tex_path = tex_path
-        self.atmcolor = core.Colors()(atmcolor, atmalpha*2)
+        self.atmcolor = core.Colors()(atmcolor, atmalpha)
+        if atmendcolor is not None:
+            self.atmendcolor = core.Colors()(atmendcolor, atmalpha)
+        else:
+            self.atmendcolor = None
         self.atmheight = atmheight
         self.atmalpha = atmalpha
         self.atmnb = atmnb
@@ -205,7 +253,7 @@ class SphericalObject(DirectObject):
             ts.setMode(TextureStage.MModulateGlow)
             self.sphobj.setTexture(ts, self.sphobj_tex)
                     
-        self.sphobj.setShaderAuto()
+        #self.sphobj.setShaderAuto()
         self.sphobj.setScale(self.radius)
         
         # glow
@@ -219,18 +267,33 @@ class SphericalObject(DirectObject):
 
         self.atm_layer_index = 0
         
-        self.add_clouds()
-        self.add_atmosphere()
+        if cloudy:
+            self.add_clouds()
+        if self.atmnb > 0:
+            self.add_atmosphere()
 
         self.rotate()
         
 
     def add_atmosphere(self):
-        scales = np.linspace(1.02, self.atmheight, self.atmnb)
-        for iscale in scales:
-           self.add_atmosphere_layer(iscale, self.atmalpha/self.atmnb)
+        a = 0.1
+        scaling = np.log(np.linspace(1, a, self.atmnb)) / np.log(a)
+        logscaler = lambda xmin, xmax: xmin + scaling * (xmax - xmin)
+        linearscaler = lambda xmin, xmax: np.linspace(xmin, xmax, self.atmnb)
+        height_scales = logscaler(1.02, self.atmheight)
+        if self.atmendcolor is not None:
+            rscale = linearscaler(self.atmcolor[0], self.atmendcolor[0])
+            gscale = linearscaler(self.atmcolor[1], self.atmendcolor[1])
+            bscale = linearscaler(self.atmcolor[2], self.atmendcolor[2])
+            
+        for i in range(self.atmnb):
+            if self.atmendcolor is not None:
+                icolor = Vec4(rscale[i], gscale[i], bscale[i], self.atmcolor[3])
+            else:
+                icolor = self.atmcolor
+            self.add_atmosphere_layer(height_scales[i], self.atmalpha/self.atmnb, icolor)
 
-    def add_atmosphere_layer(self, scaling, alpha):
+    def add_atmosphere_layer(self, scaling, alpha, color):
         atm = loader.loadModel(self.model_path)
         atm.reparentTo(self.node)
         atm.setScale(self.radius*scaling)
@@ -238,12 +301,12 @@ class SphericalObject(DirectObject):
         atm.setAlphaScale(alpha)
         atm.setShaderAuto()
         atm.clearColor()
-        atm.setColor(self.atmcolor)
+        atm.setColor(color)
         
         atmMaterial = Material()
         #atmMaterial.setTwoside(False)
-        atmMaterial.setEmission(self.atmcolor)
-        atmMaterial.setSpecular(self.atmcolor)
+        atmMaterial.setEmission(color)
+        atmMaterial.setSpecular(color)
         atmMaterial.setShininess(4)
         atm.setMaterial(atmMaterial)
         atm.setBin('fixed', self.atm_layer_index)
@@ -288,11 +351,14 @@ class SphericalObject(DirectObject):
 class Star(SphericalObject):
 
     def __init__(self,  objects_node, pos, radius, atm_size, dayscale,
-                 atmcolor, atmalpha=0.5, tex_path="textures/sun", intensity=1):
+                 atmcolor, atmalpha=0.5, tex_path="textures/sun",
+                 intensity=1, atmendcolor=None, atmnb=100):
+
         
         SphericalObject.__init__(
             self, objects_node, pos, radius, dayscale,
-            atmcolor, atm_size, atmalpha, glowing=True, atmnb=100)
+            atmcolor, atm_size, atmalpha, glowing=True, atmnb=atmnb,
+            atmendcolor=atmendcolor)
 
         self.node.setColorScale(intensity,intensity,intensity,1)
         
@@ -302,6 +368,12 @@ class Star(SphericalObject):
         render.setLight(plnp)
 
 
+            
+        
+        
+            
+        
+        
 #########################################################
 ##### class Background ##################################
 #########################################################
@@ -314,9 +386,68 @@ class Background(object):
         self.sphere.setScale(scale)
         self.sphere.setBin('background', 1)
         self.sphere.setDepthWrite(0)
-        self.sphere.setColorScale(intensity, intensity, intensity, 0)
+        self.sphere.setColorScale(intensity, intensity, intensity, 1)
         taskMgr.add(self.sphereTask, "Sphere Task")
         
     def sphereTask(self, task):
         self.sphere.setPos(base.camera, 0, 0, 0)
         return task.cont
+
+#########################################################
+##### class Plane #######################################
+#########################################################
+
+class Plane(object):
+
+    def __init__(self, parentnode, scale=0.2, intensity=1, pos=(0,0,55), texrot=90, hpr=(0,0,0)):
+
+        # alight = AmbientLight('plight')
+        # INTENSITY = 0.1
+        # alight.setColor((INTENSITY, INTENSITY, INTENSITY, 1))
+        # alnp = render.attachNewNode(alight)
+        # render.setLight(alnp)
+
+        
+        self.node = loader.loadModel(core.ROOT + "/models/plane.bam")
+
+        # scale, hpr, position
+        self.node.setScale(scale)
+        self.node.setHpr(Vec3(hpr))
+        self.node.setPos(Vec3(pos))
+        
+        # material
+        #orig_mat = self.node.findMaterial('Material.001')
+        #mat = Material()
+        #mat.setDiffuse(Vec4(1, 1, 1, 1) *1)
+        #mat.setSpecular(Vec4(1, 1, 1, 1) * 0.01)
+        #mat.setRoughness(1)
+        #mat.setEmission(Vec4(1,1,1,1) * 1000)
+        #self.node.replaceMaterial(orig_mat, mat)
+        self.node.setLightOff()
+        #self.node.clearColor()
+        self.node.setTransparency(True)
+        self.node.setColorOff()
+        self.node.setColorScaleOff()
+        #print(intensity, '==================')
+        #self.node.setColor(intensity,intensity,intensity,1)
+        #self.node.setColor(0,0,0,1)
+        self.node.setColorScale(intensity, intensity, intensity, 1)
+
+        
+        # texture
+        #self.node.setBin('plane', 1)
+        #self.node.setDepthWrite(0)
+        ts = self.node.findTextureStage('*')
+        #ts.setMode(TextureStage.MAdd)
+        #tex = self.node.findTexture('*')
+        #self.node.setTexture(ts, tex)
+        self.node.setTexHpr(ts, 0, 0, 0)
+        
+        self.node.setTwoSided(True)
+        
+        # shader
+        self.node.setShaderAuto()
+        
+        self.node.reparentTo(parentnode)
+        
+        

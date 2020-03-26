@@ -69,13 +69,14 @@ class Colors(object):
         self.colors = dict()
         self.colors['skyblue'] = self.fromRGB(0,102,204)
         self.colors['skyclearblue'] = self.fromRGB(104,229,255)
-        self.colors['m1blue'] = self.fromRGB(0,255,255)
+        self.colors['m1blue'] = self.fromRGB(0,0,255)#(0,35,255)
         self.colors['white'] = self.fromRGB(255,255,255)
         self.colors['black'] = self.fromRGB(0,0,0)
         self.colors['staryellow'] = self.fromRGB(255,255,204)
         self.colors['stars'] = self.fromRGB(76,0,153)
         self.colors['sunyellow'] = self.fromRGB(253,160,33)
         self.colors['red'] = self.fromRGB(204,0,0)
+        self.colors['m1green'] = self.fromRGB(0,42,255)
         
     def fromRGB(self, R, G, B):
         return Vec3(R/255., G/255., B/255.)
@@ -87,7 +88,7 @@ class Colors(object):
         if name in self.colors:
             return Vec4(self.colors[name], alpha)
         else:
-            raise ValueError('unknown color')
+            raise ValueError('unknown color: {}'.format(name))
 
 
 #########################################################
@@ -111,9 +112,9 @@ class Map3d(object):
             posy = posy[nonans]
             posz = posz[nonans]
 
-            scale /= min((np.nanpercentile(posx,99.9),
-                          np.nanpercentile(posy,99.9),
-                          np.nanpercentile(posz,99.9)))
+            #scale /= min((np.nanpercentile(posx,99.9),
+            #              np.nanpercentile(posy,99.9),
+            #              np.nanpercentile(posz,99.9)))
 
             posx *= scale
             posy *= scale
@@ -126,6 +127,7 @@ class Map3d(object):
             colors /= np.nanpercentile(colors, 95)
             colors[colors < 0] = 0
             colors[colors > 1] = 1
+            colors = colors**(0.9)
 
             threshold = 0.
             self.posx = posx[colors > threshold]
@@ -192,6 +194,8 @@ class Path(object):
         self.posnodes = np.array(posnodes)
         self.looknodes = looknodes
         self.fovnodes = fovnodes
+
+        logging.info('path duration: {}'.format(np.sum(self.posnodes[:,0]) * self.timescale))
         
     def get_pos_steps(self, step_nb):
 
@@ -268,9 +272,7 @@ class Path(object):
                 istep[0] = 0
             if len(istep) == 3: # microstepping at 1/100s
                 microsteps = int(100 * istep[2] * self.timescale)
-                print(microsteps, self.timescale)
                 deltat = istep[2]/microsteps * self.timescale
-                print(deltat)
                 if len(steps) == 0:
                     raise StandardError('first node cannot have any duration (it sets the original value)')
                 last_value = steps[-1][1]

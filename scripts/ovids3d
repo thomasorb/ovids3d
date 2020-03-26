@@ -90,9 +90,7 @@ if __name__ == "__main__":
         int(x * args.screen_scale), int(y * args.screen_scale)))
 
     w = World(bloom=args.bloom, blur=args.blur, record=args.record, background=args.background)
-    w.add_star(0.0003, 2500, atmalpha=0.6, colorintensity=1, color='m1blue')
-    
-    w.load_map(os.path.abspath(args.path), 'map', args.cmap)
+    w.add_map(os.path.abspath(args.path), 'map', args.cmap)
     if args.autopilot != '':
-        w.ship.autopilot(args.autopilot, scale=1, timescale=1)
+        w.ship.autopilot(args.autopilot)
     w.base.run()

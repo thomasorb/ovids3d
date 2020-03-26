@@ -39,32 +39,39 @@ class InfoScreen(DirectObject):
     def __init__(self, infos, base):
         self.base = base
         self.infos = infos
-        self.all_texts = list()
-        
+        #self.all_texts = list()
+        self.title = ''
         self.update()
 
     def update(self):
 
-        if not hasattr(self, 'title'):
-            self.title = OnscreenText(
-                text="Ovids3d",
+        title = self.infos.get('title', 'Ovids3d')
+        if title != self.title:
+            self.title = title
+            try:
+                self.title_text.destroy()
+            except AttributeError: pass
+    
+            self.title_text = OnscreenText(
+                text=title,
                 parent=self.base.a2dBottomRight, align=TextNode.A_right,
                 style=1, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
         
-            self.all_texts.append(self.title)
+            #self.all_texts.append(self.title)
 
         try:
             self.coords_text.destroy()
         except AttributeError: pass
 
-        text = "{}".format(
-                self.infos.get('map', ''))
+        text = "distance to PSR B0531+21 (in pc): {:.3f}".format(
+                float(self.infos.get('distance', 'nan')))
 
         self.coords_text = OnscreenText(
             text=text,
             parent=self.base.a2dTopLeft,
             align=TextNode.A_left,
             style=1, fg=(1, 1, 1, 1), pos=(0.1, -0.1), scale=.05)
+
 
 
         

@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
 <nodes>
   <scale value='30'></scale>
-  <timescale value='1'></timescale>
+  <timescale value='1.'></timescale>
   
   <look at='center'></look>
   <fov fov='55'></fov>
+  <pos pos='0,0,-2.01' duration='2' order='3'></pos>
   <fov fov='70' duration='10'></fov>
   <pos pos='0,0,-2' duration='1' order='3'></pos>
   <pos pos='0,0,-1.8' duration='1' order='3'></pos>
