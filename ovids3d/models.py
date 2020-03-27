@@ -7,6 +7,7 @@ from direct.showbase.DirectObject import DirectObject
 
 from . import core
 from . import constants
+from . import utils
 
 #########################################################
 ##### class FarStars ####################################
@@ -89,25 +90,6 @@ class NearStars(FarStars):
         posz = np.random.uniform(-self.radius, self.radius, size=nb)
         return posx, posy, posz
 
-    # model_path = core.ROOT + "/models/cube.x"
-
-    # def __init__(self, objects_node, nb, scale=1):
-    #     color = (0.7,1,1,1)
-    #     radius = scale * 0.0005
-    #     for i in range(100):
-    #         ipos = np.random.uniform(-scale * 5, scale * 5, 3)
-    #         iradius = np.random.uniform(radius, 2*radius)
-    #         sphobj = loader.loadModel(self.model_path)
-    #         sphobj.reparentTo(objects_node)
-    #         sphobj.setPos(Vec3(*ipos))
-    #         sphobj.setScale(iradius)
-    #         sphobj.setLightOff()
-    #         atmMaterial = Material()
-    #         sphobj.setMaterial(atmMaterial)
-    #         sphobj.setShaderAuto()
-    #         sphobj.clearColor()
-    #         sphobj.setColor(color)
-    #         sphobj.setTransparency(True)
 
 #########################################################
 ##### class Pixels ######################################
@@ -122,18 +104,13 @@ class Pixels(DirectObject):
         self.colors = core.Colors()
         self.alpha = alpha
         self.map3d = map3d
+            
         if ascubes:
-            self.add_cubes(*self.map3d.xyzc)
+            self.add_cubes(*self.map3d.xyzrgba)
         else:
-            self.add_pixels(*self.map3d.xyzc)
-
-    def get_colorsRGBA(self, colors):
-        colorsRGBA = getattr(matplotlib.cm, self.map3d.cmap)(colors)
-        colorsRGBA[:,-1] = self.alpha
-        return colorsRGBA
-        
-    def add_cubes(self, posx, posy, posz, colors):
-        colorsRGBA = self.get_colorsRGBA(colors)
+            self.add_pixels(*self.map3d.xyzrgba)
+    
+    def add_cubes(self, posx, posy, posz, r, g, b, a):
         model_path = core.ROOT + "/models/cube.x"
 
         print('creating map model')
@@ -143,7 +120,7 @@ class Pixels(DirectObject):
         
             model = loader.loadModel(model_path)
             model.setPos(posx[i], posy[i], posz[i])
-            model.setColor(*colorsRGBA[i,:])
+            model.setColor(r[i], g[i], b[i], a[i] * self.alpha)
             model.reparentTo(self.node)
             model.setLightOff()
             model.setScale(0.002 * self.cubescale)
@@ -154,9 +131,8 @@ class Pixels(DirectObject):
         print('flattening node')
         self.node.flattenStrong()
         
-    def add_pixels(self, posx, posy, posz, colors):
+    def add_pixels(self, posx, posy, posz, r, g, b, a):
 
-        colorsRGBA = self.get_colorsRGBA(colors)
         
         # create vertices
         format = GeomVertexFormat.getV3c4() # position and texcoord
@@ -175,7 +151,7 @@ class Pixels(DirectObject):
             vwriter.addData3f(posx[i], posy[i], posz[i])
             
             # random UVs
-            colorwriter.addData4f(*colorsRGBA[i,:])
+            colorwriter.addData4f(r[i], g[i], b[i], a[i] * self.alpha)
 
             # add to GeomPoints
             geompoints.addVertex(index)
@@ -190,15 +166,14 @@ class Pixels(DirectObject):
         gnode = GeomNode('starfield')
         gnode.addGeom(geom)
         self.nodepath = NodePath(gnode)
-
-        #self.nodepath.setRenderMode(RenderModeAttrib.MPoint, 3.8)
+        
         self.nodepath.setRenderModePerspective(True)
         self.nodepath.setRenderModeThickness(3.8)
         
         self.nodepath.reparentTo(self.node)
         self.nodepath.setLightOff()
         self.nodepath.setShaderAuto()
-        self.nodepath.setTransparency(TransparencyAttrib.MAlpha)
+        self.nodepath.setTransparency(True)
         self.nodepath.setBin('background', 0)
         
         self.rotate = self.nodepath.hprInterval(
@@ -393,6 +368,36 @@ class Background(object):
         self.sphere.setPos(base.camera, 0, 0, 0)
         return task.cont
 
+
+
+
+#########################################################
+##### class Line ########################################
+#########################################################
+
+class Line(object):
+
+    # def __init__(self, parentnode, r, theta, phi, color=(1,1,1,1), thickness=4):
+    #     segs = LineSegs("lines")
+    #     segs.setColor(Vec4(color))
+    #     segs.setThickness(thickness)
+    #     xyz = np.array(utils.sph2xyz(r, theta, phi))
+    #     segs.moveTo(*xyz)
+    #     segs.drawTo(*(-xyz))
+    #     segsnode = segs.create(False)
+    #     parentnode.attachNewNode(segsnode)
+
+    def __init__(self, parentnode, x, y, z, color=(1,1,1,1), thickness=4):
+        segs = LineSegs("lines")
+        segs.setColor(Vec4(color))
+        segs.setThickness(thickness)
+        #xyz = np.array(utils.sph2xyz(r, theta, phi))
+        xyz = np.array((x, y, z))
+        segs.moveTo(*xyz)
+        segs.drawTo(*(-xyz))
+        segsnode = segs.create(False)
+        parentnode.attachNewNode(segsnode)
+    
 #########################################################
 ##### class Plane #######################################
 #########################################################

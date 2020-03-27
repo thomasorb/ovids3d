@@ -1,14 +1,14 @@
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 from direct.task import Task
-import sys
+import os, sys
 from panda3d.core import PointLight, Material
 import numpy as np
 
 import ovids3d.core
 import ovids3d.models
 
-class World(DirectObject):
+class World2(ovids3d.core.World):
 
     SPEED = 0.01
     
@@ -51,17 +51,17 @@ class World(DirectObject):
             self.base.camera.setHpr(self.angle, 0, 0)
         return Task.cont
     
-    def add_map(self, path, name, cmap):
-        self.map3d = ovids3d.core.Map3d(path, name, cmap, scale=1)
+    def add_map_cube(self, *args, **kwargs):
+        kwargs['ascubes'] = True
         
-        self.pixels = ovids3d.models.Pixels(
-            self.objects_node, self.map3d, ascubes=True)
-
-        self.pixels.node.writeBamFile(path + '.bam')
+        ovids3d.core.World.add_map(self, *args, **kwargs)
         
-        render.analyze()
         
 w = World()
-w.add_map('/home/thomas/data/M1-movie/3dmap_flux.fits', 'map', 'afmhot')
+w.add_map('/home/thomas/data/M1-movie/3dmap_XYZflux.fits', 'map', 'afmhot', colorpower=0.5)
 
 w.base.run()
+
+
+render.analyze()
+        

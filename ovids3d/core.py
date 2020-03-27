@@ -6,6 +6,7 @@ import logging
 import scipy.interpolate
 import astropy.io.fits as pyfits
 import pylab as pl
+import matplotlib.cm
 import xml.etree.ElementTree
 
 from panda3d.core import Vec4, Vec3, VBase4, WindowProperties
@@ -15,7 +16,9 @@ from direct.showbase.DirectObject import DirectObject
 from direct.task.Task import Task
 
 ROOT = os.path.join(os.path.split(__file__)[0])
+CMAP_PATH = '.cmap.png'
 
+import ovids3d.ext.cbar
 
 #########################################################
 ##### class SpecialDict #################################
@@ -31,9 +34,13 @@ class SpecialDict(dict):
 #########################################################
 
 class Config(SpecialDict):
-    def __setattr__(self, key, value):
-        raise Exception('Parameter is read only')
-
+    
+    def get(self, key, default):
+        try:
+            val = self[key]
+        except KeyError:
+            return default
+        return val
 
 #########################################################
 ##### class Keys ########################################
@@ -48,7 +55,7 @@ class Keys(SpecialDict): pass
 
 class KeysMgr(DirectObject):
 
-    all_keys = 'a', 'd', 'w', 's', 'q', 'e', 'r', 'f', 'tab', 'p', 'o', 'i', 't', 'k'
+    all_keys = 'a', 'd', 'w', 's', 'q', 'e', 'r', 'f', 'tab', 'p', 'o', 'i', 't', 'k', 'x'
     
     def __init__(self):
         
@@ -58,6 +65,20 @@ class KeysMgr(DirectObject):
             self.accept(key, self.keys.__setitem__, extraArgs=[key, True])
             self.accept(key + '-up', self.keys.__setitem__, extraArgs=[key, False])
 
+    def setKey(self, key, value):
+        # https://discourse.panda3d.org/t/accepting-events-and-single-key-presses/3892/9
+        self.keys[key] = value
+        frame = globalClock.getFrameCount()
+        taskMgr.add(self.resetKeys, "resetKeys",
+                    extraArgs = [key, frame],
+                    appendTask = True)
+
+    def resetKeys(self, key, frame, task):
+        if globalClock.getFrameCount() > frame:
+            self.keys[key] = 0
+            return Task.done
+        else:
+            return Task.cont
 
 #########################################################
 ##### class Colors ######################################
@@ -88,7 +109,11 @@ class Colors(object):
         if name in self.colors:
             return Vec4(self.colors[name], alpha)
         else:
-            raise ValueError('unknown color: {}'.format(name))
+            logging.debug('unknown color: {}'.format(name))
+            try:
+                return Vec4(Vec3(name), alpha)
+            except:
+                raise StandardError('unknown color: {}'.format(name))
 
 
 #########################################################
@@ -97,44 +122,56 @@ class Colors(object):
 
 class Map3d(object):
 
-    def __init__(self, path, name, cmap, scale=1):
+    def __init__(self, path, name, cmap, scale=1, colorpower=1, colorscale=(1,1,1,1), perc=99):
 
+        def pixelsort(x, y, z, r, g, b, a):
+            _s = np.argsort(z)
+            _s2 = np.argsort(y[_s])
+            _s3 = np.argsort(x[_s][_s2])
+            return (x[_s][_s2][_s3], y[_s][_s2][_s3], z[_s][_s2][_s3],
+                    r[_s][_s2][_s3], g[_s][_s2][_s3], b[_s][_s2][_s3], a[_s][_s2][_s3])
+
+        
         self.data = pyfits.open(path)[0].data.T
         self.cmap = cmap
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             X, Y, Z, C = self.data
-            posx = X.T.flatten() * scale  
-            posy = Y.T.flatten() * scale
-            posz = Z.T.flatten() * scale
-            nonans = ~np.isnan(posx) * ~np.isnan(posy) * ~np.isnan(posz)
-            posx = posx[nonans]
-            posy = posy[nonans]
-            posz = posz[nonans]
+            self.posx = X * scale  
+            self.posy = Y * scale
+            self.posz = Z * scale
 
-            #scale /= min((np.nanpercentile(posx,99.9),
-            #              np.nanpercentile(posy,99.9),
-            #              np.nanpercentile(posz,99.9)))
-
-            posx *= scale
-            posy *= scale
-            posz *= scale
-
-            colors = C.T.flatten()[nonans]
-            colors -= np.nanpercentile(colors, 5)
-            colors = np.sqrt(colors)
-
-            colors /= np.nanpercentile(colors, 95)
+            colors = C
+            vmin = np.nanpercentile(colors, 100-perc)
+            vmax = np.nanpercentile(colors, perc)
+            
+            colors -= vmin
+            colors /= (vmax - vmin)
             colors[colors < 0] = 0
             colors[colors > 1] = 1
-            colors = colors**(0.9)
+            colors = colors ** colorpower
+            self.colors = colors
 
-            threshold = 0.
-            self.posx = posx[colors > threshold]
-            self.posy = posy[colors > threshold]
-            self.posz = posz[colors > threshold]
-            self.colors = colors[colors > threshold]
-            self.xyzc = (self.posx, self.posy, self.posz, self.colors)
+            # generate colorbar png
+            self.cbar_path = path + '.cbar.png'
+            ovids3d.ext.cbar.make_colorbar(self.cbar_path, vmin, vmax, cmap, unit=name,
+                                           colorpower=colorpower)
+
+            # compute rgba colors
+            RGBA = getattr(matplotlib.cm, cmap)(self.colors)
+            RGBA[:,3] = 1
+            RGBA *= np.array(colorscale)
+
+            #self.xyzc = (self.posx, self.posy, self.posz, self.colors)
+            xyzrgba = (self.posx, self.posy, self.posz,
+                       RGBA[:,0], RGBA[:,1],
+                       RGBA[:,2], RGBA[:,3])
+            self.xyzrgba = np.array(pixelsort(*xyzrgba))
+            self.posx = self.xyzrgba[0]
+            self.posy = self.xyzrgba[1]
+            self.posz = self.xyzrgba[2]
+            
+            
 
     def show(self, axis=0, size=10000):
         randpix = np.arange(self.posx.size)
@@ -194,8 +231,8 @@ class Path(object):
         self.posnodes = np.array(posnodes)
         self.looknodes = looknodes
         self.fovnodes = fovnodes
-
-        logging.info('path duration: {}'.format(np.sum(self.posnodes[:,0]) * self.timescale))
+        self.duration = np.sum(self.posnodes[:,0]) * self.timescale
+        logging.info('path duration: {}'.format(self.duration))
         
     def get_pos_steps(self, step_nb):
 
@@ -295,4 +332,49 @@ class Path(object):
 
     def get_fov_steps(self):
         return self._get_other_steps(self.fovnodes, cast=float)
+    
+#########################################################
+##### class Save ########################################
+#########################################################
+
+class Save(object):
+
+    def __init__(self, path):
+
+        self.path = str(path)
+        self.load()
+
+        self.data = dict()
+
+    def load(self):
+        try:
+            with open(self.path, 'r') as f:
+                for line in f:
+                    line = line.strip().split()
+                    self.data[line[0]] = np.array(line[1:], dtype=float)
+        except Exception as e:
+            logging.info('file loading error: {}'.format(e))
+
+    def write(self):
+        with open(self.path, 'w') as f:
+            for ikey in self.data:
+                f.write('{} '.format(ikey) + ' '.join([str(ival) for ival in self.data[ikey]])
+                        +'\n')
+            
+    def __setitem__(self, key, value):
+        index = 0
+        ikey = key + str(index)
+        while ikey in self.data:
+            index += 1
+            ikey = key + str(index)
+            
+        self.data[ikey] = value
+        self.write()
+
+    def __getitem__(self, key, index=0):
+        return self.data[key + str(index)]
+        
+
+
+    
     

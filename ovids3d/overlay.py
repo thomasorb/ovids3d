@@ -1,51 +1,50 @@
-from direct.gui.DirectGui import *
+from direct.gui.DirectGui import OnscreenText, OnscreenImage
 from direct.showbase.DirectObject import DirectObject
 from panda3d.core import TextNode, Vec3
 from . import core
+import os
+import numpy as np
 
-class Infos(core.SpecialDict):
 
-    def __getitem__(self, key):
-        if key not in self: return None
-        return core.SpecialDict.__getitem__(self, key)
+class Terminal(object):
 
-    __getattr__ = __getitem__
+    def __init__(self, maxlines=5):
 
-    def get(self, key, default):
-        val = self[key]
-        if val is None: return default
-        else: return val
+        self.maxlines = int(maxlines)
+        self.text = list()
 
+    def append(self, text):
+
+        self.text.append('> {}'.format(text.strip()))
+        if len(self.text) > self.maxlines:
+            self.text.pop(0)
+
+    def get_text(self):
+
+        return '\n'.join(self.text)
+    
 class Overlay(DirectObject):
 
 
-    def __init__(self, base):
+    def __init__(self, base, config, full=True):
         self.base = base
-        self.infos = Infos()
-        self.screen = InfoScreen(self.infos, self.base)
+        self.config = config    
+        self.full = full
+        self.base = base
+        
+        self.terminal = Terminal()
+        self.monofont = loader.loadFont(
+            core.ROOT + '/fonts/fantasque-sans-mono/TTF/FantasqueSansMono-Bold.ttf')
+
+        self.title = ''
 
         taskMgr.remove('overlay-update')
         taskMgr.add(self.update, 'overlay-update')
-
-
-    def update(self, task):
-        self.screen.update()
-        return task.cont
-
     
+        
+    def update(self, task):
 
-class InfoScreen(DirectObject):
-
-    def __init__(self, infos, base):
-        self.base = base
-        self.infos = infos
-        #self.all_texts = list()
-        self.title = ''
-        self.update()
-
-    def update(self):
-
-        title = self.infos.get('title', 'Ovids3d')
+        title = self.config.get('title', 'Ovids3d')
         if title != self.title:
             self.title = title
             try:
@@ -55,24 +54,45 @@ class InfoScreen(DirectObject):
             self.title_text = OnscreenText(
                 text=title,
                 parent=self.base.a2dBottomRight, align=TextNode.A_right,
-                style=1, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
-        
-            #self.all_texts.append(self.title)
+                style=2, fg=(1, 1, 1, 1), pos=(-0.1, 0.1), scale=.07)
 
+        cbar_path = self.config.get('cbar_path', None)
+        if cbar_path is not None:
+            if not hasattr(self, 'colorbar'):
+                self.colorbar = OnscreenImage(
+                    image=cbar_path, pos=(-1.3, 0, 0), scale=0.5)
+                self.colorbar.setTransparency(True)
+        else:
+            try:
+                self.colorbar.destroy()
+            except Exception as e: pass
+            
         try:
             self.coords_text.destroy()
         except AttributeError: pass
 
         text = "distance to PSR B0531+21 (in pc): {:.3f}".format(
-                float(self.infos.get('distance', 'nan')))
+                float(self.config.get('distance', 'nan')))
+        if self.full:
+            text += "\n > Cartesian: {:.1f} {:.1f} {:.1f}".format(*self.config.get('pos_xyz', (np.nan, np.nan, np.nan)))
+            text += "\n > Spherical: {:.1f} {:.1f} {:.1f}".format(*self.config.get('pos_sph', (np.nan, np.nan, np.nan)))
 
         self.coords_text = OnscreenText(
             text=text,
             parent=self.base.a2dTopLeft,
             align=TextNode.A_left,
-            style=1, fg=(1, 1, 1, 1), pos=(0.1, -0.1), scale=.05)
+            style=3, fg=(1, 1, 1, 1), pos=(0.1, -0.1), scale=.05)
 
+        try:
+            self.terminal_text.destroy()
+        except AttributeError: pass
 
+        self.terminal_text = OnscreenText(
+            text=self.terminal.get_text(),
+            parent=self.base.a2dBottomLeft,
+            align=TextNode.A_left,
+            font=self.monofont,
+            style=3, fg=(1, 1, 1, 1), pos=(0.1, +0.15), scale=.03)
 
-        
-    
+        return task.cont
+
