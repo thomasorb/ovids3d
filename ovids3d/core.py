@@ -58,28 +58,17 @@ class KeysMgr(DirectObject):
     all_keys = 'a', 'd', 'w', 's', 'q', 'e', 'r', 'f', 'tab', 'p', 'o', 'i', 't', 'k', 'x'
     
     def __init__(self):
-        
+        self.disabled = False
         self.keys = Keys()
         for key in self.all_keys:
             self.keys[key] = False
-            self.accept(key, self.keys.__setitem__, extraArgs=[key, True])
-            self.accept(key + '-up', self.keys.__setitem__, extraArgs=[key, False])
-
+            self.accept(key, self.setKey, extraArgs=[key, True])
+            self.accept(key + '-up', self.setKey, extraArgs=[key, False])
+        
     def setKey(self, key, value):
-        # https://discourse.panda3d.org/t/accepting-events-and-single-key-presses/3892/9
+        if self.disabled: return
         self.keys[key] = value
-        frame = globalClock.getFrameCount()
-        taskMgr.add(self.resetKeys, "resetKeys",
-                    extraArgs = [key, frame],
-                    appendTask = True)
-
-    def resetKeys(self, key, frame, task):
-        if globalClock.getFrameCount() > frame:
-            self.keys[key] = 0
-            return Task.done
-        else:
-            return Task.cont
-
+        
 #########################################################
 ##### class Colors ######################################
 #########################################################

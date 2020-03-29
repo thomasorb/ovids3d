@@ -29,7 +29,7 @@ class World(DirectObject):
 
     def __init__(self, bloom=0.62, blur=0.7, background=False,
                  debug=False, over=True, title=None, spacescale=10,
-                 timescale=1):
+                 timescale=1, ink=0.4):
 
         if not debug:
             logging.getLogger().setLevel(logging.INFO)
@@ -50,7 +50,7 @@ class World(DirectObject):
         filters = CommonFilters(self.base.win, self.base.cam)
         filters.setBloom(blend=np.array([1,1,1,0.]), intensity=bloom, size='large', desat=0.0)
         filters.setBlurSharpen(blur)
-        filters.setCartoonInk(separation=0.4, color=(0,0,0,1))
+        filters.setCartoonInk(separation=ink, color=(0,0,0,1))
         if background:
             self.background = models.Background(scale=100*self.config['spacescale'])
         
@@ -163,9 +163,12 @@ class Camera(DirectObject):
         self.direction_node = NodePath("direction-node")
         self.direction_node.reparentTo(self.node)
 
+        ## Keys + mouse
+        self.keysmgr = core.KeysMgr()
+        
         self.overlay = None
         if self.config['overlay']:
-            self.overlay = overlay.Overlay(self.base, self.config)
+            self.overlay = overlay.Overlay(self.base, self.config, self.keysmgr)
             
         self.save = core.Save('.temp.save')
             
@@ -180,8 +183,6 @@ class Camera(DirectObject):
         
         self.farstars = models.FarStars(self.node, radius=80*self.config['spacescale'])
 
-        ## Keys + mouse
-        self.keysmgr = core.KeysMgr()
         
         # To set relative mode and hide the cursor:
         props = WindowProperties()
@@ -383,7 +384,7 @@ class Camera(DirectObject):
         time.sleep(0.05)
         
         SCALE = 0.08 * self.config['spacescale']
-        SCALEHPR = 0.1
+        SCALEHPR = 1.5
 
                     
         self.objects_node.node().getPhysical(0).clearLinearForces()
@@ -414,6 +415,12 @@ class Camera(DirectObject):
             
         self.setPos(self.getPos() + vec * SCALE)
 
+        if self.keysmgr.keys.e:
+            self.setHpr(0, 0, -SCALEHPR)
+
+        if self.keysmgr.keys.q:
+            self.setHpr(0, 0, SCALEHPR)
+
         if self.keysmgr.keys.k:
             self.to_origin()
 
@@ -421,7 +428,7 @@ class Camera(DirectObject):
             x, y, z = self.getPos()
             models.Line(self.objects_node, x, y, z)
             if self.overlay is not None:
-                self.overlay.terminal.append('line: {} / {}'.format(
+                self.overlay.terminalout.append('line: {} / {}'.format(
                     (x, y, z), utils.xyz2sph(x, y, z)))
                 self.save['line'] = (x, y, z)
 

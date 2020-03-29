@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <nodes>
-  <scale value='4'></scale>
+  <scale value='3'></scale>
   <timescale value='1.'></timescale>
   
   <look at='center'></look>
