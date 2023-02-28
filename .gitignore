@@ -1,0 +1,13 @@
+*.pyc
+*.py~
+*.pyx~
+*~
+*.so
+*.o
+*.c
+dist/
+build/
+.eggs/
+.idea/
+**starmap_random_2020_16k_gal*
+**mwsphere_large*

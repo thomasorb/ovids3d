@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<nodes>
+  <scale value='4'></scale>
+  <timescale value='0.7'></timescale>
+  
+  <look at='center'></look>
+  <fov fov='55'></fov>
+  <pos pos='0,0,-2.01' duration='2' order='3'></pos>
+  <fov fov='70' duration='11'></fov>
+  <pos pos='0,0,-2' duration='1' order='3'></pos>
+  <pos pos='0,0,-1.8' duration='1' order='3'></pos>
+  <pos pos='0,0,-1.6' duration='1' order='3'></pos>
+  <pos pos='0,0,-1.4' duration='1' order='3'></pos>
+  <pos pos='0,0,-1.2' duration='1' order='3'></pos>
+  <pos pos='0,0,-1' duration='6' order='3'></pos>
+
+  <pos pos='1,-1,0' duration='5'></pos>
+  <pos pos='0,0,1' duration='5'></pos>
+  <pos pos='-0.5,0.5,0' duration='5'></pos>
+  <pos pos='0,0,-0.2' duration='5'></pos>
+
+  <fov fov='90' duration='5'></fov>
+  <pos pos='0.1,0.1,0' duration='5'></pos>
+  <pos pos='0,0,0.1' duration='5'></pos>
+  <pos pos='-0.1,-0.1,0' duration='5'></pos>
+  <pos pos='0,0,-0.1' duration='5'></pos>
+  
+  <pos pos='0,0,-0.4' duration='1'></pos>
+  <pos pos='0,0,-0.6' duration='1'></pos>
+  <pos pos='0,0,-0.8' duration='1'></pos>
+  <fov fov='55' duration='6'></fov>  
+  <pos pos='0,0,-1.0' duration='1'></pos>
+  <pos pos='0,0,-1.2' duration='1'></pos>
+  <pos pos='0,0,-1.4' duration='1'></pos>
+  <pos pos='0,0,-1.6' duration='1'></pos>
+  <pos pos='0,0,-1.8' duration='1'></pos>
+  <pos pos='0,0,-2.0' duration='1'></pos>
+
+  
+  
+</nodes>

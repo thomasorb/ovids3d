@@ -1,0 +1,60 @@
+#!/usr/bin/env python 
+# *-* coding: utf-8 *-*
+# Author: Thomas Martin <thomas.martin.1@ulaval.ca>
+# File: bamconvert
+
+import sys
+import argparse
+from argparse import ArgumentParser
+
+
+from ovids3d.engine import World
+from panda3d.core import loadPrcFileData
+from panda3d.core import ConfigVariableString
+import numpy as np
+import os
+
+########################################################################
+##################### MAIN #############################################
+########################################################################
+
+if __name__ == "__main__":
+
+    """Main entrance of the script.
+    
+    Parse arguments and launch the reduction process.
+    """
+
+    # define epilog for command help
+
+    epilog = """  Ovids3d
+  Author: Thomas Martin (thomas.martin.1@ulaval.ca)"""
+     
+    # define main parser
+    parser = ArgumentParser(
+        prog='ovids3d',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Convert a 3d map FITS file to a BAM file.")
+
+    parser.add_argument(
+        'path', action='store',
+        help="Path to the 3d map FITS file.")
+
+    if len(sys.argv) < 2:
+        parser.print_usage()
+        sys.exit(2)
+        
+    args = parser.parse_args()
+
+    x, y = 1920, 1080
+    loadPrcFileData('', 'win-size {} {}'.format(
+        int(x), int(y)))
+
+    path = '3dmap_XYZflux.fits'
+
+    w = World(bloom=0.35, blur=0.85, over=False, title='Bam conversion',
+          spacescale=1, ink=0.4)
+    w.add_map(os.path.abspath(args.path),
+              'default', 'viridis', colorscale=(1,1,1,1), colorpower=1, ascubes=True)
+
+    w.base.run()

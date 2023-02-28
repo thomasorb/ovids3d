@@ -1,0 +1,104 @@
+from ovids3d.engine import World
+from panda3d.core import loadPrcFileData
+from panda3d.core import ConfigVariableBool, ConfigVariableInt
+import numpy as np
+import os
+
+
+
+x, y = 1920, 1080
+loadPrcFileData('', 'win-size {} {}'.format(
+    int(x), int(y)))
+
+ConfigVariableBool("fullscreen").setValue(1)
+
+path = 'XYZ_sub.fits' ; cmap = 'afmhot' ; name=r'H$\alpha$ + [NII] + [SII]' ; color='m1blue' ; endcolor='m1green' ; colorpower = 0.5 ; colorscale = (1.4,1,1,1) ; star_alpha = 1.2
+
+
+
+#path = '3dmap_XYZflux.fits.bam' ; cmap = 'afmhot' ; name=r'H$\alpha$ + [NII] + [SII]' ; color='m1blue' ; endcolor='m1green' ; colorpower = 0.5 ; colorscale = (1.4,1,1,1) ; star_alpha = 1.2
+#path = '3dmap_XYZflux.bck.fits.bam' ; cmap = 'afmhot' ; name=r'H$\alpha$ + [NII] + [SII]' ; color='m1blue' ; endcolor='m1green' ; colorpower = 0.5 ; colorscale = (1.4,1,1,1) ; star_alpha = 1.2
+
+    #path = '3dmap_XYZnii_ha.fits' ; cmap = 'inferno' ; name=r'[NII/H]$\alpha$' ; color=(255,255,255); endcolor = None ; colorpower = 0.8 ; colorscale = (1,1,1,1); star_alpha = 0.9
+#path = '3dmap_XYZha.fits' ; cmap = 'afmhot' ; name='Ha Flux' ; color='m1blue' ; endcolor='m1green' ; colorpower = 0.5 ; colorscale = (1,1.1,1,1) ; star_alpha = 1.2
+
+#path = 'ha_cube_all.binned.fits' ; cmap = 'afmhot' ; name='Ha Flux' ; color='m1blue' ; endcolor='m1green' ; colorpower = 0.5 ; colorscale = (1,1.1,1,1) ; star_alpha = 1.2
+
+autopilot = ''#'move-short.xml' #'move2.xml'
+over = True
+record = False
+spacescale = 100
+ascubes = False
+convert = False
+
+
+if convert:
+    spacescale = 1
+    ascubes=True
+    colorscale = (1,1,1,1)
+
+config_params = {
+    'title': 'The Crab Nebula through the eyes of SITELLE',
+    'center_name': 'PSR B0531+21',
+    'space_unit': 'pc',
+    'spacescale': spacescale,
+    'overlay': False, # True for published movie
+    'full_overlay': False,
+    'fps':5, # 30 for published movie
+    }
+
+
+w = World(bloom=0.35, #0.35, for published
+          blur=1, # 0.85 for published movie 1 for images
+          ink=0.5, #0.5 for published movie, 0 for images
+          add_farstars=False,
+          gamma=0.7, #0.5 for published movie 0.7 for images
+          **config_params)
+
+w.add_map(path, name, cmap, colorscale=colorscale, colorpower=colorpower, ascubes=ascubes)
+
+if not convert:
+    #w.add_star(0.00080, 1400, atmalpha=star_alpha, colorintensity=1, color=color, endcolor=endcolor)
+    
+    #w.add_near_stars(1000, radius=30)
+    #w.add_milkyway(83.63319248, 22.01454668, intensity=1)
+    pass
+
+#w.add_map(path, name, cmap, colorscale=colorscale, colorpower=colorpower, norender=False, ascubes=ascubes, limitnb=10000)
+#w.pixels.node.writeBamFile(path + '.bam')
+
+#w.add_bammodel('3dsketch2.bam', colorscale=(0.5,0.5,1,0.1))
+
+# NII & SII
+# w.add_map('3dmap_XYZsii.fits', 'sii', 'gray', colorscale=(0.1,0,1,1),
+#           colorpower=1, norender=False)
+# w.add_map('3dmap_XYZnii.fits', 'nii', 'gray', colorscale=(1,1,1,1),
+#           colorpower=1, norender=False)
+# w.add_map(path, name, cmap, colorscale=colorscale, colorpower=colorpower, norender=True)
+
+
+# NII & Halpha ################################
+#w.add_map('3dmap_XYZha.fits', 'ha', 'gray', colorscale=(1, 0.7, 0, 1),
+#          colorpower=1, norender=True, perc=98)
+#w.add_map('3dmap_XYZnii.fits', 'nii', 'gray', colorscale=(0, 0.7, 1, 1),
+#          colorpower=1, norender=False, nocbar=True, perc=98, ascubes=ascubes)
+## bam version
+#w.add_map('3dmap_XYZha+nii.fits.bam', 'ha+nii', 'gray', colorscale=(1,1,1,1),
+#          colorpower=1, nocbar=True)
+#w.add_star(0.0003, 2800, atmalpha=.9, colorintensity=5, color=(1,1,1), endcolor=None)
+
+# SII & Halpha ##################################
+# w.add_map('3dmap_XYZha.fits', 'ha', 'gray', colorscale=(1,0.7,0.,1),
+#           colorpower=1, norender=True, perc=99)
+# w.add_map('3dmap_XYZsii.fits', 'sii', 'gray', colorscale=(0.,0.7,1,1),
+#           colorpower=1, norender=False, nocbar=True, perc=99, ascubes=ascubes)
+## bam version
+#w.add_map('3dmap_XYZha+sii.fits.bam', 'ha+sii', 'gray', colorscale=(1,1,1,1),
+#          colorpower=1, nocbar=True)
+#w.add_star(0.0003, 2800, atmalpha=.9, colorintensity=5, color=(1,1,1), endcolor=None)
+
+
+
+if autopilot != '':
+    w.ship.autopilot(autopilot, scale=1, timescale=1, record=record)
+w.base.run()

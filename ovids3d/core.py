@@ -2,20 +2,24 @@ import warnings
 import sys
 import os
 import numpy as np
-import logging
 import scipy.interpolate
 import astropy.io.fits as pyfits
 import pylab as pl
+import matplotlib.cm
+import matplotlib.colors
 import xml.etree.ElementTree
 
 from panda3d.core import Vec4, Vec3, VBase4, WindowProperties
-        
-# DirectionalLight
 from direct.showbase.DirectObject import DirectObject
-from direct.task.Task import Task
 
 ROOT = os.path.join(os.path.split(__file__)[0])
+CMAP_PATH = '.cmap.png'
 
+import ovids3d.ext.cbar
+
+import logging
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 #########################################################
 ##### class SpecialDict #################################
@@ -31,9 +35,26 @@ class SpecialDict(dict):
 #########################################################
 
 class Config(SpecialDict):
-    def __setattr__(self, key, value):
-        raise Exception('Parameter is read only')
 
+    def __init__(self):
+        super().__init__()
+
+        self['overlay'] = True
+        self['full_overlay'] = False
+        self['gridsize'] = 10
+        self['spacescale'] = 1 # m / 3d space unit
+        self['timescale'] = 1 # s / real s
+        self['movescale'] = 2 # s / real s
+        self['debug'] = False
+        self['fps'] = 30
+        
+
+    def get(self, key, default):
+        try:
+            val = self[key]
+        except KeyError:
+            return default
+        return val
 
 #########################################################
 ##### class Keys ########################################
@@ -48,48 +69,55 @@ class Keys(SpecialDict): pass
 
 class KeysMgr(DirectObject):
 
-    all_keys = 'a', 'd', 'w', 's', 'q', 'e', 'r', 'f', 'tab', 'p', 'o', 'i', 't', 'k'
+    all_keys = 'a', 'd', 'w', 's', 'q', 'e', 'r', 'f', 'p', 'k', 'i', 'o' #, 't', 'k', 'x', 'tab', 'o'
     
     def __init__(self):
-        
+        self.disabled = False
         self.keys = Keys()
         for key in self.all_keys:
             self.keys[key] = False
-            self.accept(key, self.keys.__setitem__, extraArgs=[key, True])
-            self.accept(key + '-up', self.keys.__setitem__, extraArgs=[key, False])
-
-
+            self.accept(key, self.setKey, extraArgs=[key, True])
+            self.accept(key + '-up', self.setKey, extraArgs=[key, False])
+        
+    def setKey(self, key, value):
+        if self.disabled: return
+        self.keys[key] = value
+        
 #########################################################
 ##### class Colors ######################################
 #########################################################
     
 class Colors(object):
 
-    def __init__(self):
-        self.colors = dict()
-        self.colors['skyblue'] = self.fromRGB(0,102,204)
-        self.colors['skyclearblue'] = self.fromRGB(104,229,255)
-        self.colors['m1blue'] = self.fromRGB(0,0,255)#(0,35,255)
-        self.colors['white'] = self.fromRGB(255,255,255)
-        self.colors['black'] = self.fromRGB(0,0,0)
-        self.colors['staryellow'] = self.fromRGB(255,255,204)
-        self.colors['stars'] = self.fromRGB(76,0,153)
-        self.colors['sunyellow'] = self.fromRGB(253,160,33)
-        self.colors['red'] = self.fromRGB(204,0,0)
-        self.colors['m1green'] = self.fromRGB(0,42,255)
+    colors = {
+        'skyblue': (0,102,204),
+        'skyclearblue': (104,229,255),
+        'm1blue': (0,42,255),
+        'staryellow': (255,255,204),
+        'stars': (76,0,153),
+        'sunyellow': (253,160,33),
+        'm1green': (0,200,255)
+    }
         
-    def fromRGB(self, R, G, B):
-        return Vec3(R/255., G/255., B/255.)
+    @classmethod
+    def get(cls, color, alpha=None):
+        logger.info('input color:{}, alpha:{}'.format(color, alpha))
+        
+        if color in cls.colors:
+            color = cls.colors[color]
 
-    def fromRGBA(self, R, G, B, A):
-        return VBase4(R/255., G/255., B/255., A)
-    
-    def __call__(self, name, alpha):
-        if name in self.colors:
-            return Vec4(self.colors[name], alpha)
-        else:
-            raise ValueError('unknown color: {}'.format(name))
+        if not isinstance(color, str):
+            color = np.array(color, dtype=float)
+            if np.any(color > 1):
+                color /= 255.
 
+        if alpha is not None:
+            alpha = np.clip(alpha, 0, 1)
+
+        color = Vec4(matplotlib.colors.to_rgba(color, alpha=alpha))
+        logger.info('output color:{}'.format(color))
+                        
+        return color
 
 #########################################################
 ##### class Map3d #######################################
@@ -97,44 +125,84 @@ class Colors(object):
 
 class Map3d(object):
 
-    def __init__(self, path, name, cmap, scale=1):
+    def __init__(self, path, cmap, flux_unit='flux', scale=1, colorpower=1, colorscale=(1,1,1,1), perc=(3,99), limitnb=None):
 
-        self.data = pyfits.open(path)[0].data.T
+        assert len(perc) == 2, 'perc must be 2-tuple (percmin, percmax) not {}'.format(perc)
+        
+        def pixelsort(x, y, z, r, g, b, a, c):
+            _s = np.argsort(z)
+            _s2 = np.argsort(y[_s])
+            _s3 = np.argsort(x[_s][_s2])
+            return (x[_s][_s2][_s3], y[_s][_s2][_s3], z[_s][_s2][_s3],
+                    r[_s][_s2][_s3], g[_s][_s2][_s3], b[_s][_s2][_s3], a[_s][_s2][_s3],
+                    c[_s][_s2][_s3])
+
+        
+        self.data = pyfits.open(path)[0].data
+        logger.info('data shape: {}'.format(self.data.shape))
+        if self.data.ndim != 2: raise Exception('Bad data shape - Should be (N, 4)')
+        if np.any(self.data.shape == 4): raise Exception('Bad data shape - Should be (N, 4)')
+        if self.data.shape[1] == 4:
+            self.data = self.data.T
+        
         self.cmap = cmap
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
+            #Z, X, Y, C = self.data
             X, Y, Z, C = self.data
-            posx = X.T.flatten() * scale  
-            posy = Y.T.flatten() * scale
-            posz = Z.T.flatten() * scale
-            nonans = ~np.isnan(posx) * ~np.isnan(posy) * ~np.isnan(posz)
-            posx = posx[nonans]
-            posy = posy[nonans]
-            posz = posz[nonans]
+            self.posx = X * scale  
+            self.posy = Y * scale
+            self.posz = Z * scale
 
-            #scale /= min((np.nanpercentile(posx,99.9),
-            #              np.nanpercentile(posy,99.9),
-            #              np.nanpercentile(posz,99.9)))
-
-            posx *= scale
-            posy *= scale
-            posz *= scale
-
-            colors = C.T.flatten()[nonans]
-            colors -= np.nanpercentile(colors, 5)
-            colors = np.sqrt(colors)
-
-            colors /= np.nanpercentile(colors, 95)
-            colors[colors < 0] = 0
+            colors = C
+            vmin = np.nanpercentile(colors, perc[0])
+            vmax = np.nanpercentile(colors, perc[1])
+            
+            colors -= vmin
+            colors /= (vmax - vmin)
+            colors[colors < 0] = np.nan
             colors[colors > 1] = 1
-            colors = colors**(0.9)
+            colors = colors ** colorpower
+            self.colors = colors
 
-            threshold = 0.
-            self.posx = posx[colors > threshold]
-            self.posy = posy[colors > threshold]
-            self.posz = posz[colors > threshold]
-            self.colors = colors[colors > threshold]
-            self.xyzc = (self.posx, self.posy, self.posz, self.colors)
+            nonan = ~np.isnan(self.colors)
+            self.posx = self.posx[nonan]
+            self.posy = self.posy[nonan]
+            self.posz = self.posz[nonan]
+            self.colors = self.colors[nonan]
+            
+            # generate colorbar png
+            self.cbar_path = path + '.cbar.png'
+            ovids3d.ext.cbar.make_colorbar(self.cbar_path, vmin, vmax, cmap, unit=flux_unit,
+                                           colorpower=colorpower)
+
+            # compute rgba colors
+            RGBA = getattr(matplotlib.cm, cmap)(self.colors)
+            RGBA[:,3] = 1
+            RGBA *= np.array(colorscale)
+
+            xyzrgbac = (self.posx, self.posy, self.posz,
+                       RGBA[:,0], RGBA[:,1],
+                       RGBA[:,2], RGBA[:,3], self.colors)
+            
+            xyzrgbac = np.array(pixelsort(*xyzrgbac))
+            pyfits.writeto('.temp.fits', xyzrgbac, overwrite=True)
+            if limitnb is not None:
+                randpix = np.arange(xyzrgbac.shape[1])
+                np.random.shuffle(randpix)
+                randpix = randpix[:limitnb]
+                xyzrgbac = xyzrgbac[:,randpix]
+        
+            self.xyzrgba = xyzrgbac[:-1,:]
+            self.colors = np.squeeze(xyzrgbac[-1,:])
+                
+            self.posx = self.xyzrgba[0]
+            self.posy = self.xyzrgba[1]
+            self.posz = self.xyzrgba[2]
+            
+            logger.info('map loaded')
+            
+            
 
     def show(self, axis=0, size=10000):
         randpix = np.arange(self.posx.size)
@@ -158,7 +226,7 @@ class Path(object):
         # load roadmap steps
 
         if not os.path.exists(filepath):
-            logging.debug('{} not found, trying in paths directory'.format(filepath))
+            logger.debug('{} not found, trying in paths directory'.format(filepath))
             filepath = ROOT + '/paths/' + filepath
         
         nodes_xml = xml.etree.ElementTree.parse(filepath).getroot()
@@ -194,8 +262,8 @@ class Path(object):
         self.posnodes = np.array(posnodes)
         self.looknodes = looknodes
         self.fovnodes = fovnodes
-
-        logging.info('path duration: {}'.format(np.sum(self.posnodes[:,0]) * self.timescale))
+        self.duration = np.sum(self.posnodes[:,0]) * self.timescale
+        logger.info('path duration: {}'.format(self.duration))
         
     def get_pos_steps(self, step_nb):
 
@@ -274,7 +342,7 @@ class Path(object):
                 microsteps = int(100 * istep[2] * self.timescale)
                 deltat = istep[2]/microsteps * self.timescale
                 if len(steps) == 0:
-                    raise StandardError('first node cannot have any duration (it sets the original value)')
+                    raise Exception('first node cannot have any duration (it sets the original value)')
                 last_value = steps[-1][1]
                 vals = np.linspace(last_value, istep[1], microsteps)
                 for j in range(microsteps):
@@ -296,3 +364,15 @@ class Path(object):
     def get_fov_steps(self):
         return self._get_other_steps(self.fovnodes, cast=float)
     
+
+#########################################################
+##### class DirectCore ###############################
+#########################################################
+
+class DirectCore(DirectObject):
+
+    def __init__(self):
+        super().__init__()
+        
+        
+        

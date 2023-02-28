@@ -1,0 +1,7 @@
+
+def xyz2sph(xyz):
+    z, y, z = xyz
+    r = np.sqrt(x**2 + y**2 + z**2)
+    phi = np.rad2deg(np.arctan2(y, x))
+    theta = np.rad2deg(np.arccos(z/r))
+    return r, theta, phi    
