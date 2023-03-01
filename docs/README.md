@@ -1,11 +1,19 @@
 # Ovids3d
 
+## Installation
+
+```bash
+conda install numpy scipy matplotlib astropy
+conda install -c conda-forge panda3d
+```
+
+
 ## Quick start
 
-Ovids3d is used to display data clouds obtained. Its input is an (N, 4) array of (X, Y, Z, F) values, where X, Y, Z are the
+Ovids3d is used to display data clouds obtained with SITELLE. Its input is an (N, 4) array of (X, Y, Z, F) values, where X, Y, Z are the
 coordinates of the points in the 3D space and F their brightness value.
 
-Note that evrything will work better if X,Y,Z are set relative to the origin (0,0,0) and are smaller than 10. The flux also should be scaled between 0 and 100.
+Note that everything will work better if X,Y,Z are set relative to the origin (0,0,0) and are smaller than 10. The flux also should be scaled between 0 and 100.
 
 
 ```python
@@ -34,22 +42,7 @@ data
 
 
 
-Once the data is obtained a simple script like this one can be run to explore the data and create a first vizualisation.
-
-To navigate through the displayed object you may use the following keys of the keyboard:
-
-* 'W': front
-* 'S': back
-* 'A': left
-* 'D': right
-* 'Q': roll on left
-* 'E': roll on right
-* 'R': up
-* 'F': down
-
-You have to use the mouse to change the viewer direction: left-cliking on any part of the display with move the view in this direction.
-
-You can also change the field of view with the mouse wheel.
+Once the data is obtained a simple script like this one can be run to explore the data and create a first vizualisation. **The following is not intended to run with Jupyter. It must be saved in a separate file (e.g. `run.py`) and run with `python run.py`.**
 
 ```python
 from ovids3d.engine import World
@@ -78,6 +71,23 @@ w = World(**config_params)
 w.add_map(path, cmap)
 w.base.run()
 ```
+
+To navigate through the displayed object you may use the following keys of the keyboard:
+
+* 'W': front
+* 'S': back
+* 'A': left
+* 'D': right
+* 'Q': roll on left
+* 'E': roll on right
+* 'R': up
+* 'F': down
+
+You have to use the mouse to change the viewer direction: left-cliking on any part of the display with move the view in this direction.
+
+You can also change the field of view with the mouse wheel.
+
+
 
 ## Working with raw SITELLE data
 
@@ -108,19 +118,19 @@ pl.colorbar()
 
 
 
-    <matplotlib.colorbar.Colorbar at 0x7fd4ff5fb0d0>
+    <matplotlib.colorbar.Colorbar at 0x7fa673fff0a0>
 
 
 
 
     
-![png](README_files/README_7_1.png)
+![png](README_files/README_8_1.png)
     
 
 
 
     
-![png](README_files/README_7_2.png)
+![png](README_files/README_8_2.png)
     
 
 
@@ -151,7 +161,7 @@ pl.grid()
 
 
     
-![png](README_files/README_8_0.png)
+![png](README_files/README_9_0.png)
     
 
 
