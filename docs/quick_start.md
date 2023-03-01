@@ -1,14 +1,6 @@
-# Ovids3d
+# Quick start guide
 
-## Installation
-
-```bash
-conda install numpy scipy matplotlib astropy
-conda install -c conda-forge panda3d
-```
-
-
-## Quick start
+## Introduction
 
 Ovids3d is used to display data clouds obtained with SITELLE. Its input is an (N, 4) array of (X, Y, Z, F) values, where X, Y, Z are the
 coordinates of the points in the 3D space and F their brightness value.
@@ -118,19 +110,19 @@ pl.colorbar()
 
 
 
-    <matplotlib.colorbar.Colorbar at 0x7fa673fff0a0>
+    <matplotlib.colorbar.Colorbar at 0x7f75919330d0>
 
 
 
 
     
-![png](README_files/README_8_1.png)
+![png](quick_start_files/quick_start_6_1.png)
     
 
 
 
     
-![png](README_files/README_8_2.png)
+![png](quick_start_files/quick_start_6_2.png)
     
 
 
@@ -161,7 +153,7 @@ pl.grid()
 
 
     
-![png](README_files/README_9_0.png)
+![png](quick_start_files/quick_start_7_0.png)
     
 
 
