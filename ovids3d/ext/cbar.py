@@ -18,7 +18,9 @@ def make_colorbar(path, vmin, vmax, cmap, unit='unit', colorpower=1.):
 
     # Set the colormap and norm to correspond to the data for which
     # the colorbar will be used.
-    cmap = getattr(mpl.cm, cmap)
+    if isinstance(cmap, str):
+        cmap = getattr(mpl.cm, cmap)
+    
     norm = mpl.colors.PowerNorm(colorpower, vmin=vmin, vmax=vmax)
 
     # ColorbarBase derives from ScalarMappable and puts a colorbar

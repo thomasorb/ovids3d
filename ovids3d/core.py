@@ -177,7 +177,10 @@ class Map3d(object):
                                            colorpower=colorpower)
 
             # compute rgba colors
-            RGBA = getattr(matplotlib.cm, cmap)(self.colors)
+            if isinstance(cmap, str):
+                RGBA = getattr(matplotlib.cm, cmap)(self.colors)
+            else:
+                RGBA = cmap(self.colors)
             RGBA[:,3] = 1
             RGBA *= np.array(colorscale)
 
